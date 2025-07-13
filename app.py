@@ -34,8 +34,7 @@ if uploaded_file:
 
     for col in ['ctr', 'roas']:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
-
+            df[col] = df[col].astype(str).str.replace('[R$ ]', '', regex=True).str.replace(',', '.').astype(float)
     st.subheader("📋 Dados da campanha")
     st.dataframe(df)
 
