@@ -14,7 +14,7 @@ st.markdown("""
     .stApp {
         background-color: #0d1117;
     }
-    .css-1v0mbdj, .css-1d391kg {  /* Cabeçalho */
+    .css-1v0mbdj, .css-1d391kg {
         color: #58a6ff;
     }
     </style>
@@ -27,14 +27,15 @@ uploaded_file = st.file_uploader("Envie o CSV com os dados da campanha", type=["
 if uploaded_file:
     df = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("latin1")))
 
-    # Convertendo colunas
+    # Convertendo colunas com segurança
     for col in ['spend', 'cpc']:
         if col in df.columns:
-            df[col] = df[col].replace('[R$ ]', '', regex=True).str.replace(',', '.').astype(float)
+            df[col] = df[col].astype(str).str.replace('[R$ ]', '', regex=True).str.replace(',', '.').astype(float)
 
     for col in ['ctr', 'roas']:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.replace('[R$ ]', '', regex=True).str.replace(',', '.').astype(float)
+            df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
+
     st.subheader("📋 Dados da campanha")
     st.dataframe(df)
 
@@ -63,7 +64,6 @@ if uploaded_file:
         st.markdown(f"**Eficácia geral estimada:** `{eficacia}%`")
         st.markdown(f"**Probabilidade de gerar engajamento:** `{engajamento_pct}%`")
 
-        # Sugestões de melhoria
         melhorias = []
         if roas < 1:
             melhorias.append("Melhorar segmentação ou criativo para aumentar o ROAS")
