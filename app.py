@@ -1,78 +1,103 @@
 # ads-performance-checker
-def gerar_analise(campaign):
-    roas_ideal = 1.0
-    ctr_ideal = 1.5  # %
-    cpc_ideal = 8.0  # R$
+import streamlit as st
+import pandas as pd
+import numpy as np
+import io
 
-    roas = campaign['roas']
-    ctr = campaign['ctr']
-    cpc = campaign['cpc']
-    reactions = campaign['reactions']
-    comments = campaign['comments']
-    shares = campaign['shares']
-    new_followers = campaign['new_followers']
+st.set_page_config(page_title="IA Meta Ads", layout="centered")
+st.markdown("""
+    <style>
+    body {
+        background-color: #0d1117;
+        color: #c9d1d9;
+    }
+    .stApp {
+        background-color: #0d1117;
+    }
+    .css-1v0mbdj, .css-1d391kg {
+        color: #58a6ff;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-    engajamento_total = reactions + comments + shares
+st.title("📊 IA de Análise de Campanhas Meta Ads")
 
-    eficacia = calcula_eficacia(roas, ctr, cpc, engajamento_total)
-    engajamento_pct = calcula_engajamento(ctr, reactions, comments, shares)
+uploaded_file = st.file_uploader("Envie o CSV com os dados da campanha", type=["csv"])
 
-    analise = []
-    analise.append(f"### 🔍 Análise detalhada da campanha: **{campaign['campaign_name']}**\n")
+if uploaded_file:
+    try:
+        df = pd.read_csv(uploaded_file, encoding='utf-8')
+    except UnicodeDecodeError:
+        try:
+            df = pd.read_csv(uploaded_file, encoding='latin1')
+        except Exception as e:
+            st.error(f"Erro ao ler o arquivo: {e}")
+            st.stop()
 
-    if roas >= roas_ideal and ctr >= ctr_ideal and cpc <= cpc_ideal:
-        analise.append(
-            f"✅ A campanha apresenta um desempenho sólido:\n"
-            f"- ROAS de {roas:.2f} indica retorno financeiro positivo.\n"
-            f"- CTR de {ctr:.2f}% está acima do benchmark recomendado ({ctr_ideal}%).\n"
-            f"- CPC de R${cpc:.2f} está controlado dentro do custo esperado."
-        )
-    else:
-        analise.append("⚠️ A campanha possui áreas para melhoria:\n")
-        if roas < roas_ideal:
-            analise.append(f"- ROAS baixo ({roas:.2f} < {roas_ideal}): indica retorno insuficiente para investimento.")
-        if ctr < ctr_ideal:
-            analise.append(f"- CTR baixo ({ctr:.2f}% < {ctr_ideal}%): sinal de baixo interesse do público.")
-        if cpc > cpc_ideal:
-            analise.append(f"- CPC alto (R${cpc:.2f} > R${cpc_ideal}): custo elevado por clique reduz lucratividade.")
+    # Limpeza e padronização segura
+    for col in ['spend', 'cpc']:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace('[^0-9,\.]', '', regex=True).str.replace(',', '.').astype(float)
 
-    analise.append(f"\n### 📊 Engajamento e Interação\n")
-    analise.append(f"- Reações: {reactions}\n- Comentários: {comments}\n- Compartilhamentos: {shares}\n- Novos seguidores: {new_followers}")
+    for col in ['ctr', 'roas']:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
 
-    if engajamento_total < 10:
-        analise.append("\n⚠️ Engajamento geral baixo, limitando o alcance orgânico e o impacto da marca.")
-    else:
-        analise.append("\n✅ Engajamento satisfatório, favorecendo alcance e fortalecimento da marca.")
+    int_cols = ['new_followers', 'reactions', 'comments', 'shares']
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-    # Sempre adicionar as recomendações, independente dos outros indicadores
-    analise.append("\n### 🔧 Recomendações para maximizar resultados\n")
+    st.subheader("📋 Dados da campanha")
+    st.dataframe(df)
 
-    # Sempre sugerir pelo menos uma recomendação para cada possível problema
-    if roas < roas_ideal:
-        analise.append("- Reavalie a segmentação para alcançar públicos mais qualificados.")
-        analise.append("- Invista em criativos com provas sociais e ofertas claras.")
-    else:
-        analise.append("- Continue otimizando para manter ou melhorar o ROAS.")
+    st.subheader("📈 Resultados da Análise")
 
-    if ctr < ctr_ideal:
-        analise.append("- Teste variações nos anúncios com chamadas diretas e visuais impactantes.")
-        analise.append("- Ajuste posicionamentos para atingir canais com maior atividade do público.")
-    else:
-        analise.append("- Mantenha o foco em anúncios que gerem alto interesse do público.")
+    for _, row in df.iterrows():
+        nome = row.get('campaign_name', 'Campanha Sem Nome')
+        ctr = row.get('ctr', 0)
+        cpc = row.get('cpc', 0)
+        roas = row.get('roas', 0)
+        spend = row.get('spend', 0)
+        new_followers = row.get('new_followers', 0)
+        reactions = row.get('reactions', 0)
+        comments = row.get('comments', 0)
+        shares = row.get('shares', 0)
 
-    if cpc > cpc_ideal:
-        analise.append("- Otimize o orçamento para reduzir custos em horários ou públicos saturados.")
-        analise.append("- Explore públicos menos concorridos para baixar o custo por clique.")
-    else:
-        analise.append("- Continue controlando o custo por clique para manter rentabilidade.")
+        # Métricas combinadas
+        engajamento_total = reactions + comments + shares
+        eficacia = min(100, round((roas * 35 + ctr * 12 - cpc * 5 + engajamento_total * 0.4), 2))
+        eficacia = max(0, eficacia)
+        engajamento_pct = min(100, round((ctr * 0.5 + reactions * 0.25 + comments * 0.15 + shares * 0.1), 2))
 
-    if engajamento_total < 10:
-        analise.append("- Utilize conteúdos interativos (enquetes, vídeos curtos) para estimular ações do público.")
-        analise.append("- Incentive compartilhamentos e comentários com CTAs claros e diretos.")
-    else:
-        analise.append("- Continue produzindo conteúdo que estimule interação e engajamento.")
+        st.markdown(f"### 📌 Campanha: `{nome}`")
+        st.markdown(f"**🎯 Eficácia geral estimada:** `{eficacia}%`")
+        st.markdown(f"**📢 Probabilidade de engajamento:** `{engajamento_pct}%`")
 
-    analise.append("\n---\n")
-    analise.append(f"**Eficácia estimada:** {eficacia}%  \n**Probabilidade de engajamento:** {engajamento_pct}%")
+        st.markdown("---")
+        st.markdown("**📋 Análise detalhada:**")
+        if roas >= 1 and ctr >= 1.5 and cpc <= 8:
+            st.markdown("✅ Campanha com bom desempenho geral. Continue otimizando públicos e criativos para manter a performance.")
+        else:
+            if roas < 1:
+                st.markdown("- 🔻 ROAS abaixo do ideal: otimize segmentação e use criativos mais voltados à conversão.")
+            if ctr < 1.5:
+                st.markdown("- 🔻 CTR abaixo da média: teste variações de criativos e chamadas mais diretas.")
+            if cpc > 8:
+                st.markdown("- 🔻 CPC elevado: refine os públicos e evite horários muito concorridos.")
 
-    return "\n".join(analise)
+        if engajamento_total < 10:
+            st.markdown("- 📉 Baixo engajamento: use conteúdo interativo, vídeos curtos e enquetes para incentivar reações.")
+        else:
+            st.markdown("- 👍 Bom engajamento, ideal para remarketing e construção de comunidade.")
+
+        if new_followers < 5:
+            st.markdown("- 👥 Poucos novos seguidores: inclua CTAs no criativo incentivando seguir a página.")
+        else:
+            st.markdown("- 📈 Crescimento saudável de seguidores gerado pela campanha.")
+
+        st.markdown("---")
+
+    st.success("✅ Análise finalizada com sucesso!")
+else:
+    st.info("Envie um arquivo CSV com colunas como: campaign_name, spend, ctr, cpc, roas, new_followers, reactions, comments, shares.")
